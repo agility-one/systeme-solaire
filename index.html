@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+
+<!-- *** Système Solaire *** 
+
+    GNU GENERAL PUBLIC LICENSE
+    Version 3, 29 juin 2007
+
+    Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+    Tout droit réservé.
+
+    Vous pouvez redistribuer ce logiciel sous certaines conditions ; 
+    voir la licence GNU General Public License pour plus de détails.
+
+    Ce logiciel est distribué dans l'espoir qu'il sera utile, 
+    mais SANS AUCUNE GARANTIE ; sans même la garantie implicite 
+    de COMMERCIALISATION ou d'ADAPTATION À UN USAGE PARTICULIER. 
+    Voir la licence GNU General Public License pour plus de détails.
+
+    Vous devriez avoir reçu une copie de la licence GNU General Public License 
+    avec ce logiciel. Si ce n'est pas le cas, consultez <https://www.gnu.org/licenses/>.
+
+    Le wallpapers et .GLB présents ne sont pas inclus dans la licence, ils sont utilisé sous copyright 
+    donc il faut l'accord des créateurs ou mettre les votres pour une utilisation publique.
+
+-->
+<!--
+   .       . 
+ +  :      .
+           :       _
+       .   !   '  (_)
+          ,|.' 
+-  -- ---(-O-`--- --  -
+         ,`|'`.
+       ,   !    .
+           :       :  " 
+           .     --+--
+ .:        .       !
+
+   source : https://www.asciiart.eu/space/other
+-->
+    <meta charset="UTF-8">
+    <title>Système Solaire</title>
+    <style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        background: #000000;
+    }
+
+    canvas { 
+        display: block;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    .star {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: white;
+        border-radius: 50%;
+        animation: twinkle 2s infinite ease-in-out;
+    }
+
+    @keyframes twinkle {
+        0%, 100% {
+            opacity: 0.3;
+        }
+        50% {
+            opacity: 1;
+        }
+    }
+
+.modal {
+    display: none; /* Caché par défaut */
+    position: fixed; /* Reste en place */
+    z-index: 1001; /* Au-dessus des labels */
+    left: 0;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    overflow: auto; /* Défilement si nécessaire */
+}
+
+.modal-content {
+    background-color: rgba(0, 0, 0, 0.7); /* Fond sombre et transparent */
+    margin: 15% auto; /* Centré verticalement */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Largeur par défaut */
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    font-family: 'Arial', sans-serif;
+    color: white;
+}
+
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: #bbb;
+    text-decoration: none;
+    cursor: pointer;
+}
+</style>
+
+</head>
+<body>
+<script src="./three.min.js"></script>
+<script src="./OrbitControls.js"></script>
+<script src="./tween.umd.js"></script>
+<script src="./dat.gui.min.js"></script>
+<script src="./GLTFLoader.js"></script>
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <div id="modal-body"></div>
+    </div>
+</div>
+<script>
+// Initialisation de la scène, de la caméra et du renderer
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Variables de contrôle
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const gui = new dat.GUI();
+const parameters = {
+    zoom: 40,
+    speedMultiplier: 0.5,
+    sunIntensity: 1, // Ajout du paramètre pour l'intensité du soleil
+    positionX: camera.position.x,
+    positionY: camera.position.y,
+    positionZ: camera.position.z
+};
+
+    // Ajout de l'éclairage
+    const light = new THREE.PointLight(0xffffff, 2);
+    light.position.set(0, 0, 0);
+    scene.add(light);
+
+// Charger les textures
+const textureLoader = new THREE.TextureLoader();
+
+// Fonction pour charger des objets
+function loadObject(path, position, scale, callback) {
+    const loader = new THREE.GLTFLoader();
+
+    loader.load(path, function (gltf) {
+        const obj = gltf.scene;
+        obj.position.set(position, 0, 0);
+        obj.scale.set(scale, scale, scale);
+        scene.add(obj);
+        if (callback) {
+            callback(obj);
+        }
+    }, undefined, function (error) {
+        console.error('An error happened', error);
+    });
+}
+
+// Fonction pour charger des astéroïdes et les disposer en ceinture
+const asteroids = [];
+function loadAsteroids(path, numberOfAsteroids, minOrbitRadius, maxOrbitRadius) {
+    const loader = new THREE.GLTFLoader();
+    loader.load(path, function (gltf) {
+        gltf.scene.traverse(function (child) {
+            if (child.isMesh) {
+                for (let i = 0; i < numberOfAsteroids / 12; i++) {
+                    const asteroid = child.clone();
+                    const orbitRadius = THREE.MathUtils.randFloat(minOrbitRadius, maxOrbitRadius);
+                    const theta = Math.random() * 2 * Math.PI;
+                    const x = orbitRadius * Math.cos(theta);
+                    const y = 0;
+                    const z = orbitRadius * Math.sin(theta);
+                    asteroid.position.set(x, y, z);
+                    asteroid.rotation.y = theta;
+                    asteroid.scale.setScalar(THREE.MathUtils.randFloat(0.8, 1.2));
+                    scene.add(asteroid);
+                    asteroids.push(asteroid);
+                }
+            }
+        });
+
+        // Appliquer une rotation globale de 90° autour de l'axe Z
+        const rotationMatrix = new THREE.Matrix4().makeRotationZ(Math.PI / 2);
+        asteroids.forEach(asteroid => {
+            asteroid.applyMatrix4(rotationMatrix);
+        });
+    }, undefined, function (error) {
+        console.error('An error happened', error);
+    });
+}
+
+// Appel de la fonction pour charger les astéroïdes
+//loadAsteroids('./asteroid.glb', 100, 15, 20);
+loadAsteroids('./asteroid.glb', 130, 40, 25);
+
+// Fonction pour créer des planètes avec textures et orbites
+function createPlanet(size, texturePath, distance, orbitalSpeed, info) {
+    const geometry = new THREE.SphereGeometry(size, 32, 32);
+    const material = new THREE.MeshBasicMaterial({ map: textureLoader.load(texturePath) });
+    const planet = new THREE.Mesh(geometry, material);
+    planet.userData = { distance: distance, orbitalSpeed: orbitalSpeed, angle: 0, satellites: [], name: '', info: info };
+    scene.add(planet);
+
+    // Ajouter l'orbite
+    const orbitGeometry = new THREE.BufferGeometry();
+    const orbitVertices = [];
+    const segments = 64;
+    for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * 2 * Math.PI;
+        orbitVertices.push(
+            0,
+            distance * Math.cos(theta),
+            distance * Math.sin(theta)
+        );
+    }
+    orbitGeometry.setAttribute('position', new THREE.Float32BufferAttribute(orbitVertices, 3));
+    const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x888888 });
+    const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+    scene.add(orbit);
+
+    return planet;
+}
+
+// Fonction pour créer des satellites (lunes) autour des planètes
+function createSatellite(planet, size, distance, orbitalSpeed, name) {
+    const geometry = new THREE.SphereGeometry(size, 16, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+    const satellite = new THREE.Mesh(geometry, material);
+    satellite.userData = { distance: distance, orbitalSpeed: orbitalSpeed, angle: 0, name: name };
+    planet.userData.satellites.push(satellite);
+    planet.add(satellite);
+    return satellite;
+}
+
+// Ajout des planètes avec textures, noms, orbites et informations
+const sunMaterial = new THREE.MeshStandardMaterial({
+    emissive: 0xFFF88F,
+    emissiveMap: textureLoader.load('./sun-map.jpg'),
+    emissiveIntensity: parameters.sunIntensity
+});
+const sun = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), sunMaterial);
+sun.userData = { distance: 0, orbitalSpeed: 0, angle: 0, satellites: [], name: 'Soleil', info: "Nom : Soleil<br>..." };
+scene.add(sun);
+
+const pointLight = new THREE.PointLight(0xFDFFD3, 1200, 400, 1.4);
+pointLight.position.set(0, 0, 0); // Placer la lumière à l'intérieur du Soleil
+scene.add(pointLight);
+
+const mercury = createPlanet(0.4, './mercury-map.jpg', 7, 0.02, "Nom : Mercure<br>Rayon : 2,439.7 km<br>Inclinaison : 0.034°<br>Rotation : 58.6 jours terrestres<br>Orbites : 88 jours terrestres<br>Distance : 57.9 millions de km<br>Lunes : 0<br>Info : La plus petite planète de notre système solaire et la plus proche du Soleil.");
+
+const venus = createPlanet(0.9, './Venusmap1000x500.jpg', 9, 0.015, "Nom : Vénus<br>Rayon : 6,051.8 km<br>Inclinaison : 177.4°<br>Rotation : 243 jours terrestres<br>Orbites : 225 jours terrestres<br>Distance : 108.2 millions de km<br>Lunes : 0<br>Info : La deuxième planète la plus proche du Soleil, connue pour ses températures extrêmes et son atmosphère épaisse.");
+
+const earth = createPlanet(1, './Earthmap1000x500.jpg', 11, 0.01, "Nom : Terre<br>Rayon : 6,371 km<br>Inclinaison : 23.5°<br>Rotation : 24 heures<br>Orbites : 365 jours<br>Distance : 150 millions de km<br>Lunes : 1 (Lune)<br>Info : Troisième planète du Soleil et la seule connue pour abriter la vie.");
+
+createSatellite(earth, 0.2, 2, 0.05, 'Lune'); // La Lune
+
+const mars = createPlanet(0.8, './Marsmap1000x500.jpg', 15, 0.008, "Nom : Mars<br>Rayon : 3,389.5 km<br>Inclinaison : 25.19°<br>Rotation : 1.03 jours terrestres<br>Orbites : 687 jours terrestres<br>Distance : 227.9 millions de km<br>Lunes : 2 (Phobos et Deimos)<br>Info : Connue comme la planète rouge, célèbre pour son apparence rougeâtre et son potentiel de colonisation humaine.");
+
+createSatellite(mars, 0.1, 1.5, 0.08, 'Phobos'); // Phobos
+createSatellite(mars, 0.08, 1, 0.12, 'Deimos'); // Deimos
+
+const jupiter = createPlanet(2, './Jupitermap1000x500.png', 20, 0.005, "Nom : Jupiter<br>Rayon : 69,911 km<br>Inclinaison : 3.13°<br>Rotation : 9.9 heures<br>Orbites : 12 années terrestres<br>Distance : 778.5 millions de km<br>Lunes : 95 lunes connues (Ganymède, Callisto, Europe, Io sont les 4 plus grandes)<br>Info : La plus grande planète de notre système solaire, connue pour sa Grande Tache Rouge.");
+
+createSatellite(jupiter, 0.3, 3, 0.03, 'Ganymède'); // Ganymède
+createSatellite(jupiter, 0.28, 4, 0.04, 'Callisto'); // Callisto
+createSatellite(jupiter, 0.2, 2.5, 0.05, 'Io'); // Io
+createSatellite(jupiter, 0.18, 3.5, 0.06, 'Europe'); // Europe
+
+const saturn = createPlanet(1.7, './saturn-map.jpg', 25, 0.003, "Nom : Saturne<br>Rayon : 58,232 km<br>Inclinaison : 26.73°<br>Rotation : 10.7 heures<br>Orbites : 29.5 années terrestres<br>Distance : 1.4 milliards de km<br>Lunes : 146 lunes connues<br>Info : Distinguée par son vaste système d'anneaux, la deuxième plus grande planète de notre système solaire.");
+saturn.userData.name = 'Saturne';
+
+// Chargement de la texture des anneaux
+const ringTexture = textureLoader.load('./saturn-rings.png');
+
+// Création de la géométrie des anneaux
+const ringGeometry = new THREE.RingGeometry(1.9, 3, 64);
+const ringMaterial = new THREE.MeshBasicMaterial({
+    map: ringTexture,
+    side: THREE.DoubleSide,
+    transparent: true
+});
+
+// Création du mesh des anneaux
+const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+
+// Rotation des anneaux alignés avec Saturne
+rings.rotation.x = Math.PI / 2;
+rings.rotation.y = Math.PI / 3.5;
+
+// Ajout des anneaux à Saturne
+saturn.add(rings);
+
+createSatellite(saturn, 0.25, 2.8, 0.04, 'Titan'); // Titan
+createSatellite(saturn, 0.15, 3.2, 0.05, 'Rhea'); // Rhea
+
+const uranus = createPlanet(1.3, './map-uranus.jpg', 30, 0.002, "Nom : Uranus<br>Rayon : 25,362 km<br>Inclinaison : 97.77°<br>Rotation : 17.2 heures<br>Orbites : 84 années terrestres<br>Distance : 2.9 milliards de km<br>Lunes : 27 lunes connues<br>Info : Connue pour sa rotation unique sur le côté et sa couleur bleu pâle.");
+uranus.userData.name = 'Uranus';
+
+const neptune = createPlanet(1.2, './Neptunemap1000x500.png', 35, 0.0015, "Nom : Neptune<br>Rayon : 24,622 km<br>Inclinaison : 28.32°<br>Rotation : 16.1 heures<br>Orbites : 165 années terrestres<br>Distance : 4.5 milliards de km<br>Lunes : 14 lunes connues<br>Info : La planète la plus éloignée du Soleil dans notre système solaire, connue pour sa couleur bleu profond.");
+neptune.userData.name = 'Neptune';
+
+const pluto = createPlanet(0.2, './pluto_map.jpg', 40, 0.001, "Nom : Pluton<br>Rayon : 1,188.3 km<br>Inclinaison : 122.53°<br>Rotation : 6.4 jours terrestres<br>Orbites : 248 années terrestres<br>Distance : 5.9 milliards de km<br>Lunes : 5 (Charon, Styx, Nix, Kerberos, Hydra)<br>Info : Initialement classée comme la neuvième planète, Pluton est maintenant considérée comme une planète naine.");
+
+// Fonction pour l'intensité de la lumière du Soleil
+function updateSunIntensity() {
+    sun.material.emissiveIntensity = parameters.sunIntensity;
+    pointLight.intensity = parameters.sunIntensity * 100;
+    sun.material.needsUpdate = true;
+}
+
+// Mise à jour des paramètres de la caméra
+function updateCamera() {
+    camera.position.set(parameters.zoom, parameters.zoom, parameters.zoom);
+    camera.lookAt(0, 0, 0);
+}
+
+// Création de l'interface graphique
+gui.add(parameters, 'zoom', 10, 100).name('Zoom').onChange(updateCamera);
+gui.add(parameters, 'speedMultiplier', 0.1, 10).name('Speed Multiplier');
+gui.add(parameters, 'sunIntensity', 0.1, 5).name('Sun Intensity').onChange(updateSunIntensity); // intensité du Soleil
+gui.add(parameters, 'positionX').name('Position X').listen();
+gui.add(parameters, 'positionY').name('Position Y').listen();
+gui.add(parameters, 'positionZ').name('Position Z').listen();
+
+
+// Positionnement initial de la caméra
+updateCamera();
+updateSunIntensity(); // Initialiser l'intensité du Soleil
+
+// Raycaster pour détecter les clics sur les planètes
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const modal = document.getElementById('modal');
+const modalBody = document.getElementById('modal-body');
+const closeBtn = document.querySelector('.close-btn');
+let stopAnimation = false;
+
+// Cacher la modal
+function closeModal() {
+    modal.style.display = 'none';
+    // Revenir à la position initiale de la caméra
+    camera.position.set(39, -40, 14);
+    camera.zoom = 1; // Réinitialisation du zoom
+    camera.updateProjectionMatrix();
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+    stopAnimation = false; // Reprendre l'animation
+}
+
+closeBtn.onclick = closeModal;
+window.onclick = function(event) {
+    if (event.target == modal) {
+        closeModal();
+    }
+}
+
+function onMouseClick(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(scene.children, true);
+
+    if (intersects.length > 0) {
+        const intersected = intersects[0].object;
+
+        if (intersected.userData.distance !== undefined) {
+            // Calculer la nouvelle position de la caméra pour zoomer devant la planète
+            const direction = new THREE.Vector3();
+            direction.subVectors(camera.position, intersected.position).normalize();
+            const targetPosition = intersected.position.clone().add(direction.multiplyScalar(5));
+
+            camera.position.copy(targetPosition);
+            camera.lookAt(intersected.position);
+
+            // Stopper l'animation
+            stopAnimation = true;
+
+            // Afficher le modal avec les informations de la planète
+            modalBody.innerHTML = intersected.userData.info;
+            modal.style.display = 'block';
+        }
+    }
+}
+
+window.addEventListener('click', onMouseClick, false);
+
+// Animation
+function animate() {
+    if (!stopAnimation) {
+        // Rotation des planètes et des satellites autour du Soleil avec multiplicateur de vitesse
+        [mercury, venus, earth, mars, jupiter, saturn, uranus, neptune, pluto].forEach(planet => {
+            planet.userData.angle += planet.userData.orbitalSpeed * parameters.speedMultiplier;
+            planet.position.y = planet.userData.distance * Math.cos(planet.userData.angle);
+            planet.position.z = planet.userData.distance * Math.sin(planet.userData.angle);
+
+            // Rotation des satellites autour de leur planète
+            planet.userData.satellites.forEach(satellite => {
+                satellite.userData.angle += satellite.userData.orbitalSpeed * parameters.speedMultiplier;
+                satellite.position.x = satellite.userData.distance * Math.cos(satellite.userData.angle);
+                satellite.position.z = satellite.userData.distance * Math.sin(satellite.userData.angle);
+            });
+        });
+
+        controls.update();
+    }
+
+    // Mise à jour des coordonnées du système solaire
+    parameters.positionX = camera.position.x.toFixed(2);
+    parameters.positionY = camera.position.y.toFixed(2);
+    parameters.positionZ = camera.position.z.toFixed(2);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+animate();
+</script>
+
+<script>
+    function generateStars() {
+        const numStars = 200;
+        const body = document.querySelector('body');
+
+        for (let i = 0; i < numStars; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.top = `${Math.random() * 100}vh`;
+            star.style.left = `${Math.random() * 100}vw`;
+            star.style.animationDuration = `${Math.random() * 2 + 1}s`;
+            star.style.animationDelay = `${Math.random() * 2}s`;
+            body.appendChild(star);
+        }
+    }
+
+    generateStars();
+</script>
+</body>
+</html>
